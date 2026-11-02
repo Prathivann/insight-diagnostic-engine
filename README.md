@@ -4,6 +4,8 @@ Ask "why did this metric move?" and get a verified answer. A deterministic engin
 
 This is a showcase project. The goal is to demonstrate how an analyst actually diagnoses a metric change: not just "revenue fell," but which lever moved it, which slice drove the lever, and when to stop digging.
 
+![The dashboard: ask why a metric moved in plain English and get a verified, narrated answer with the full investigation path](ide-askmode-arr.png)
+
 ## The problem
 
 Every BI tool shows you *what* changed. Almost none of them tell you *why*. A dashboard says revenue dropped 8 percent, and then an analyst spends an hour slicing it by segment, region, channel, and cohort to find the cause. That manual investigation is repetitive, it happens every reporting cycle, and it is the same decomposition logic every time.
@@ -25,6 +27,9 @@ Five layers, built bottom up:
 4. **LLM layer** - two thin functions. `parse` turns a plain-English question into a metric and a time window. `narrate` turns the engine's verified findings into plain English.
 5. **UI** - a Streamlit dashboard. A KPI board that responds to the selected window, plus two ways to diagnose: Ask (natural language) and Guided (dropdowns, works with no API key).
 
+![Guided mode: pick a metric and two periods with no API key needed; the KPI board and the investigation path update together](ide-diagmode-arr.png)
+
+![Another Ask example: the SMB segment is identified as the driver behind a shift in active customers](ide-askmode.png)
 ## The engine
 
 The interesting part. It decomposes a change two ways, because they answer different questions.
