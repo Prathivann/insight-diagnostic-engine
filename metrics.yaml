@@ -1,0 +1,151 @@
+# Semantic layer: every metric defined once and correctly.
+# The LLM may only pick metrics and dimensions from this file.
+
+# ---- shared dimension vocabulary (valid slice axes) ----
+dimensions:
+  segment:              {table: mrr_snapshots,     column: segment}
+  region:               {table: mrr_snapshots,     column: region}
+  acquisition_channel:  {table: mrr_snapshots,     column: acquisition_channel}
+  plan_tier:            {table: mrr_snapshots,     column: plan_tier}
+
+tables:
+  mrr_snapshots:
+    grain: [customer_id, month]
+    time_column: month
+  acquisition_costs:
+    grain: [month, acquisition_channel, segment]
+    time_column: month
+
+metrics:
+
+  mrr:
+    label: "Monthly Recurring Revenue"
+    kind: simple
+    table: mrr_snapshots
+    agg: sum
+    column: mrr
+    format: currency
+    dimensions: [segment, region, acquisition_channel, plan_tier]
+    decompositions:
+      factors: [customer_count, arpu]
+    description: "Total recurring revenue booked in the month."
+
+  customer_count:
+    label: "Active Customers"
+    kind: simple
+    table: mrr_snapshots
+    agg: nunique
+    column: customer_id
+    format: integer
+    dimensions: [segment, region, acquisition_channel, plan_tier]
+    description: "Distinct customers active in the month."
+
+  new_customers:
+    label: "New Customers"
+    kind: simple
+    table: mrr_snapshots
+    agg: nunique
+    column: customer_id
+    filter: "status == 'new'"
+    format: integer
+    dimensions: [segment, region, acquisition_channel, plan_tier]
+    description: "Customers acquired in the month."
+
+  arpu:
+    label: "ARPU"
+    kind: ratio
+    numerator: mrr
+    denominator: customer_count
+    format: currency
+    dimensions: [segment, region, acquisition_channel, plan_tier]
+    decompositions:
+      factors: [mrr, customer_count]
+    description: "Average revenue per active customer (MRR / customers)."
+
+  arr:
+    label: "Annual Recurring Revenue"
+    kind: derived
+    formula: "mrr * 12"
+    inputs: [mrr]
+    format: currency
+    dimensions: [segment, region, acquisition_channel, plan_tier]
+    description: "Annualized run-rate (MRR x 12)."
+
+  churned_customers:
+    label: "Churned Customers"
+    kind: special
+    routine: churned_count
+    table: mrr_snapshots
+    format: integer
+    dimensions: [segment, region, acquisition_channel, plan_tier]
+    description: "Count of customers lost during the window (additive base for churn)."
+
+  churn_rate:
+    label: "Monthly Churn Rate"
+    kind: special
+    routine: monthly_churn
+    table: mrr_snapshots
+    decompose_via: churned_customers
+    format: percent
+    dimensions: [segment, region, acquisition_channel, plan_tier]
+    description: "Share of prior-month active customers who are gone this month."
+
+  marketing_spend:
+    label: "Marketing Spend"
+    kind: simple
+    table: acquisition_costs
+    agg: sum
+    column: marketing_spend
+    format: currency
+    dimensions: [segment, acquisition_channel]
+    description: "Marketing dollars spent acquiring customers."
+
+  sales_spend:
+    label: "Sales Spend"
+    kind: simple
+    table: acquisition_costs
+    agg: sum
+    column: sales_spend
+    format: currency
+    dimensions: [segment, acquisition_channel]
+    description: "Sales dollars spent acquiring customers."
+
+  acq_new_customers:
+    label: "New Customers (cost table)"
+    kind: simple
+    table: acquisition_costs
+    agg: sum
+    column: new_customers
+    format: integer
+    dimensions: [segment, acquisition_channel]
+    description: "New customers recorded in the cost table (reconciles with Table 1)."
+
+  cac:
+    label: "Customer Acquisition Cost"
+    kind: derived
+    formula: "(marketing_spend + sales_spend) / acq_new_customers"
+    inputs: [marketing_spend, sales_spend, acq_new_customers]
+    format: currency
+    dimensions: [segment, acquisition_channel]
+    description: "Fully-loaded cost to acquire one customer."
+
+  ltv:
+    label: "Customer Lifetime Value"
+    kind: special
+    routine: ltv
+    table: mrr_snapshots
+    params: {gross_margin: 0.80}
+    format: currency
+    dimensions: [segment, region, acquisition_channel, plan_tier]
+    description: "ARPU x gross margin / monthly churn (per-window)."
+
+  ltv_cac_ratio:
+    label: "LTV : CAC"
+    kind: ratio
+    numerator: ltv
+    denominator: cac
+    format: ratio
+    dimensions: [segment, acquisition_channel]
+    decompositions:
+      factors: [ltv, cac]
+    description: "Unit economics health. Spans both tables: LTV (Table 1) / CAC (Table 2)."
